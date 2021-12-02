@@ -1,0 +1,12 @@
+yolo_model:
+
+  config_file:
+    name: yolov4-tiny_cup.cfg
+  weight_file:
+    name: yolov4-tiny_cup_final.weights
+  threshold:
+    value: 0.6
+  detection_classes:
+    names:
+      - cup
+      - bottle
