@@ -39,7 +39,7 @@ YoloObjectDetector::YoloObjectDetector(ros::NodeHandle nh)
 
 YoloObjectDetector::~YoloObjectDetector() {
   {
-    std::unique_lock<std::shared_mutex> lockNodeStatus(mutexNodeStatus_);
+    boost::unique_lock<boost::shared_mutex> lockNodeStatus(mutexNodeStatus_);
     isNodeRunning_ = false;
   }
   yoloThread_.join();
@@ -170,12 +170,12 @@ void YoloObjectDetector::cameraCallback(const sensor_msgs::ImageConstPtr& msg) {
 
   if (cam_image) {
     {
-      std::unique_lock<std::shared_mutex> lockImageCallback(mutexImageCallback_);
+      boost::unique_lock<boost::shared_mutex> lockImageCallback(mutexImageCallback_);
       imageHeader_ = msg->header;
       camImageCopy_ = cam_image->image.clone();
     }
     {
-      std::unique_lock<std::shared_mutex> lockImageStatus(mutexImageStatus_);
+      boost::unique_lock<boost::shared_mutex> lockImageStatus(mutexImageStatus_);
       imageStatus_ = true;
     }
     frameWidth_ = cam_image->image.size().width;
@@ -187,7 +187,7 @@ void YoloObjectDetector::cameraCallback(const sensor_msgs::ImageConstPtr& msg) {
 void YoloObjectDetector::checkForObjectsActionGoalCB() {
   ROS_DEBUG("[YoloObjectDetector] Start check for objects action.");
 
-  std::shared_ptr<const darknet_ros_msgs::CheckForObjectsGoal> imageActionPtr = checkForObjectsActionServer_->acceptNewGoal();
+  boost::shared_ptr<const darknet_ros_msgs::CheckForObjectsGoal> imageActionPtr = checkForObjectsActionServer_->acceptNewGoal();
   sensor_msgs::Image imageAction = imageActionPtr->image;
 
   cv_bridge::CvImagePtr cam_image;
@@ -201,15 +201,15 @@ void YoloObjectDetector::checkForObjectsActionGoalCB() {
 
   if (cam_image) {
     {
-      std::unique_lock<std::shared_mutex> lockImageCallback(mutexImageCallback_);
+      boost::unique_lock<boost::shared_mutex> lockImageCallback(mutexImageCallback_);
       camImageCopy_ = cam_image->image.clone();
     }
     {
-      std::unique_lock<std::shared_mutex> lockImageCallback(mutexActionStatus_);
+      boost::unique_lock<boost::shared_mutex> lockImageCallback(mutexActionStatus_);
       actionId_ = imageActionPtr->id;
     }
     {
-      std::unique_lock<std::shared_mutex> lockImageStatus(mutexImageStatus_);
+      boost::unique_lock<boost::shared_mutex> lockImageStatus(mutexImageStatus_);
       imageStatus_ = true;
     }
     frameWidth_ = cam_image->image.size().width;
@@ -370,7 +370,7 @@ void* YoloObjectDetector::detectInThread() {
 
 void* YoloObjectDetector::fetchInThread() {
   {
-    std::shared_lock<std::shared_mutex> lock(mutexImageCallback_);
+    boost::shared_lock<boost::shared_mutex> lock(mutexImageCallback_);
     //IplImageWithHeader_ imageAndHeader = getIplImageWithHeader();
     //IplImage* ROS_img = imageAndHeader.image;
     //ipl_into_image(ROS_img, buff_[buffIndex_]);
@@ -475,7 +475,7 @@ void YoloObjectDetector::yolo() {
     // IplImage* ROS_img = imageAndHeader.image;
     // buff_[0] = ipl_to_image(ROS_img);
     // headerBuff_[0] = imageAndHeader.header;
-    std::shared_lock<std::shared_mutex> lock(mutexImageCallback_);
+    boost::shared_lock<boost::shared_mutex> lock(mutexImageCallback_);
     CvMatWithHeader_ imageAndHeader = getCvMatWithHeader();
     buff_[0] = mat_to_image(imageAndHeader.image);
     headerBuff_[0] = imageAndHeader.header;
@@ -545,12 +545,12 @@ IplImageWithHeader_ YoloObjectDetector::getIplImageWithHeader() {
 */
 
 bool YoloObjectDetector::getImageStatus(void) {
-  std::shared_lock<std::shared_mutex> lock(mutexImageStatus_);
+  boost::shared_lock<boost::shared_mutex> lock(mutexImageStatus_);
   return imageStatus_;
 }
 
 bool YoloObjectDetector::isNodeRunning(void) {
-  std::shared_lock<std::shared_mutex> lock(mutexNodeStatus_);
+  boost::shared_lock<boost::shared_mutex> lock(mutexNodeStatus_);
   return isNodeRunning_;
 }
 

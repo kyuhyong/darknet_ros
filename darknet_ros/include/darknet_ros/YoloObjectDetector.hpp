@@ -51,12 +51,18 @@ extern "C" {
 #include <sys/time.h>
 #include "box.h"
 #include "cost_layer.h"
-#include "darknet_ros/image_interface.hpp"
+//#include "darknet_ros/image_interface.hpp"
 #include "detection_layer.h"
 #include "network.h"
 #include "parser.h"
 #include "region_layer.h"
 #include "utils.h"
+
+#include "image_opencv.h"
+#include "image.h"
+#include "darknet.h"
+
+#include "image_interface.hpp"
 }
 
 //extern "C" void ipl_into_image(IplImage* src, image im);
@@ -210,16 +216,16 @@ class YoloObjectDetector {
 
   std_msgs::Header imageHeader_;
   cv::Mat camImageCopy_;
-  std::shared_mutex mutexImageCallback_;
+  boost::shared_mutex mutexImageCallback_;
 
   bool imageStatus_ = false;
-  std::shared_mutex mutexImageStatus_;
+  boost::shared_mutex mutexImageStatus_;
 
   bool isNodeRunning_ = true;
-  std::shared_mutex mutexNodeStatus_;
+  boost::shared_mutex mutexNodeStatus_;
 
   int actionId_;
-  std::shared_mutex mutexActionStatus_;
+  boost::shared_mutex mutexActionStatus_;
 
   // double getWallTime();
 
