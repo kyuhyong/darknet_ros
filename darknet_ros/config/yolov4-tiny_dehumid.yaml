@@ -1,0 +1,12 @@
+yolo_model:
+
+  config_file:
+    name: yolov4-tiny_dehumid.cfg
+  weight_file:
+    name: yolov4-tiny_dehumid_final2.weights
+  threshold:
+    value: 0.8
+  detection_classes:
+    names:
+      - pass
+      - no_cover

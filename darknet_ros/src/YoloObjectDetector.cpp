@@ -39,7 +39,7 @@ YoloObjectDetector::YoloObjectDetector(ros::NodeHandle nh)
 
 YoloObjectDetector::~YoloObjectDetector() {
   {
-    boost::unique_lock<boost::shared_mutex> lockNodeStatus(mutexNodeStatus_);
+    std::unique_lock<std::shared_mutex> lockNodeStatus(mutexNodeStatus_);
     isNodeRunning_ = false;
   }
   yoloThread_.join();
@@ -151,8 +151,8 @@ void YoloObjectDetector::init() {
   std::string checkForObjectsActionName;
   nodeHandle_.param("actions/camera_reading/topic", checkForObjectsActionName, std::string("check_for_objects"));
   checkForObjectsActionServer_.reset(new CheckForObjectsActionServer(nodeHandle_, checkForObjectsActionName, false));
-  checkForObjectsActionServer_->registerGoalCallback(boost::bind(&YoloObjectDetector::checkForObjectsActionGoalCB, this));
-  checkForObjectsActionServer_->registerPreemptCallback(boost::bind(&YoloObjectDetector::checkForObjectsActionPreemptCB, this));
+  checkForObjectsActionServer_->registerGoalCallback(std::bind(&YoloObjectDetector::checkForObjectsActionGoalCB, this));
+  checkForObjectsActionServer_->registerPreemptCallback(std::bind(&YoloObjectDetector::checkForObjectsActionPreemptCB, this));
   checkForObjectsActionServer_->start();
 }
 
@@ -170,12 +170,12 @@ void YoloObjectDetector::cameraCallback(const sensor_msgs::ImageConstPtr& msg) {
 
   if (cam_image) {
     {
-      boost::unique_lock<boost::shared_mutex> lockImageCallback(mutexImageCallback_);
+      std::unique_lock<std::shared_mutex> lockImageCallback(mutexImageCallback_);
       imageHeader_ = msg->header;
       camImageCopy_ = cam_image->image.clone();
     }
     {
-      boost::unique_lock<boost::shared_mutex> lockImageStatus(mutexImageStatus_);
+      std::unique_lock<std::shared_mutex> lockImageStatus(mutexImageStatus_);
       imageStatus_ = true;
     }
     frameWidth_ = cam_image->image.size().width;
@@ -187,7 +187,7 @@ void YoloObjectDetector::cameraCallback(const sensor_msgs::ImageConstPtr& msg) {
 void YoloObjectDetector::checkForObjectsActionGoalCB() {
   ROS_DEBUG("[YoloObjectDetector] Start check for objects action.");
 
-  boost::shared_ptr<const darknet_ros_msgs::CheckForObjectsGoal> imageActionPtr = checkForObjectsActionServer_->acceptNewGoal();
+  std::shared_ptr<const darknet_ros_msgs::CheckForObjectsGoal> imageActionPtr = checkForObjectsActionServer_->acceptNewGoal();
   sensor_msgs::Image imageAction = imageActionPtr->image;
 
   cv_bridge::CvImagePtr cam_image;
@@ -201,15 +201,15 @@ void YoloObjectDetector::checkForObjectsActionGoalCB() {
 
   if (cam_image) {
     {
-      boost::unique_lock<boost::shared_mutex> lockImageCallback(mutexImageCallback_);
+      std::unique_lock<std::shared_mutex> lockImageCallback(mutexImageCallback_);
       camImageCopy_ = cam_image->image.clone();
     }
     {
-      boost::unique_lock<boost::shared_mutex> lockImageCallback(mutexActionStatus_);
+      std::unique_lock<std::shared_mutex> lockImageCallback(mutexActionStatus_);
       actionId_ = imageActionPtr->id;
     }
     {
-      boost::unique_lock<boost::shared_mutex> lockImageStatus(mutexImageStatus_);
+      std::unique_lock<std::shared_mutex> lockImageStatus(mutexImageStatus_);
       imageStatus_ = true;
     }
     frameWidth_ = cam_image->image.size().width;
@@ -370,10 +370,13 @@ void* YoloObjectDetector::detectInThread() {
 
 void* YoloObjectDetector::fetchInThread() {
   {
-    boost::shared_lock<boost::shared_mutex> lock(mutexImageCallback_);
-    IplImageWithHeader_ imageAndHeader = getIplImageWithHeader();
-    IplImage* ROS_img = imageAndHeader.image;
-    ipl_into_image(ROS_img, buff_[buffIndex_]);
+    std::shared_lock<std::shared_mutex> lock(mutexImageCallback_);
+    //IplImageWithHeader_ imageAndHeader = getIplImageWithHeader();
+    //IplImage* ROS_img = imageAndHeader.image;
+    //ipl_into_image(ROS_img, buff_[buffIndex_]);
+    CvMatWithHeader_ imageAndHeader = getCvMatWithHeader();
+    free_image(buff_[buffIndex_]);
+    buff_[buffIndex_] = mat_to_image(imageAndHeader.image);
     headerBuff_[buffIndex_] = imageAndHeader.header;
     buffId_[buffIndex_] = actionId_;
   }
@@ -381,6 +384,14 @@ void* YoloObjectDetector::fetchInThread() {
   letterbox_image_into(buff_[buffIndex_], net_->w, net_->h, buffLetter_[buffIndex_]);
   return 0;
 }
+
+float get_pixel_cp(image m, int x, int y, int c)
+{
+    assert(x < m.w && y < m.h && c < m.c);
+    return m.data[c*m.h*m.w + y*m.w + x];
+}
+
+int windows = 0;
 
 void* YoloObjectDetector::displayInThread(void* ptr) {
   show_image_cv(buff_[(buffIndex_ + 1) % 3], "YOLO V4");
@@ -459,10 +470,14 @@ void YoloObjectDetector::yolo() {
   roiBoxes_ = (darknet_ros::RosBox_*)calloc(l.w * l.h * l.n, sizeof(darknet_ros::RosBox_));
 
   {
-    boost::shared_lock<boost::shared_mutex> lock(mutexImageCallback_);
-    IplImageWithHeader_ imageAndHeader = getIplImageWithHeader();
-    IplImage* ROS_img = imageAndHeader.image;
-    buff_[0] = ipl_to_image(ROS_img);
+    // boost::shared_lock<boost::shared_mutex> lock(mutexImageCallback_);
+    // IplImageWithHeader_ imageAndHeader = getIplImageWithHeader();
+    // IplImage* ROS_img = imageAndHeader.image;
+    // buff_[0] = ipl_to_image(ROS_img);
+    // headerBuff_[0] = imageAndHeader.header;
+    std::shared_lock<std::shared_mutex> lock(mutexImageCallback_);
+    CvMatWithHeader_ imageAndHeader = getCvMatWithHeader();
+    buff_[0] = mat_to_image(imageAndHeader.image);
     headerBuff_[0] = imageAndHeader.header;
   }
   buff_[1] = copy_image(buff_[0]);
@@ -472,7 +487,8 @@ void YoloObjectDetector::yolo() {
   buffLetter_[0] = letterbox_image(buff_[0], net_->w, net_->h);
   buffLetter_[1] = letterbox_image(buff_[0], net_->w, net_->h);
   buffLetter_[2] = letterbox_image(buff_[0], net_->w, net_->h);
-  ipl_ = cvCreateImage(cvSize(buff_[0].w, buff_[0].h), IPL_DEPTH_8U, buff_[0].c);
+  //ipl_ = cvCreateImage(cvSize(buff_[0].w, buff_[0].h), IPL_DEPTH_8U, buff_[0].c);
+  disp_ = image_to_mat(buff_[0]);
 
   int count = 0;
 
@@ -498,7 +514,7 @@ void YoloObjectDetector::yolo() {
       if (viewImage_) {
         displayInThread(0);
       } else {
-        generate_image(buff_[(buffIndex_ + 1) % 3], ipl_);
+        generate_image_cp(buff_[(buffIndex_ + 1) % 3], disp_);
       }
       publishInThread();
     } else {
@@ -515,25 +531,33 @@ void YoloObjectDetector::yolo() {
   }
 }
 
+CvMatWithHeader_ YoloObjectDetector::getCvMatWithHeader() {
+  CvMatWithHeader_ header = {.image = camImageCopy_, .header = imageHeader_};
+  return header;
+}
+
+/*
 IplImageWithHeader_ YoloObjectDetector::getIplImageWithHeader() {
   IplImage* ROS_img = new IplImage(camImageCopy_);
   IplImageWithHeader_ header = {.image = ROS_img, .header = imageHeader_};
   return header;
 }
+*/
 
 bool YoloObjectDetector::getImageStatus(void) {
-  boost::shared_lock<boost::shared_mutex> lock(mutexImageStatus_);
+  std::shared_lock<std::shared_mutex> lock(mutexImageStatus_);
   return imageStatus_;
 }
 
 bool YoloObjectDetector::isNodeRunning(void) {
-  boost::shared_lock<boost::shared_mutex> lock(mutexNodeStatus_);
+  std::shared_lock<std::shared_mutex> lock(mutexNodeStatus_);
   return isNodeRunning_;
 }
 
 void* YoloObjectDetector::publishInThread() {
   // Publish image.
-  cv::Mat cvImage = cv::cvarrToMat(ipl_);
+  //cv::Mat cvImage = cv::cvarrToMat(ipl_);
+  cv::Mat cvImage = disp_;
   if (!publishDetectionImage(cv::Mat(cvImage))) {
     ROS_DEBUG("Detection image has not been broadcasted.");
   }
@@ -603,5 +627,18 @@ void* YoloObjectDetector::publishInThread() {
 
   return 0;
 }
+void YoloObjectDetector::generate_image_cp(image p, cv::Mat& disp) {
+  int x, y, k;
+  if (p.c == 3) rgbgr_image(p);
+  // normalize_image(copy);
 
+  int step = disp.step;
+  for (y = 0; y < p.h; ++y) {
+    for (x = 0; x < p.w; ++x) {
+      for (k = 0; k < p.c; ++k) {
+        disp.data[y * step + x * p.c + k] = (unsigned char)(get_pixel_cp(p, x, y, k) * 255);
+      }
+    }
+  }
+}
 } /* namespace darknet_ros*/
