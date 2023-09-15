@@ -51,7 +51,6 @@ extern "C" {
 #include <sys/time.h>
 #include "box.h"
 #include "cost_layer.h"
-//#include "darknet_ros/image_interface.hpp"
 #include "detection_layer.h"
 #include "network.h"
 #include "parser.h"
@@ -62,7 +61,7 @@ extern "C" {
 #include "image.h"
 #include "darknet.h"
 
-#include "image_interface.hpp"
+#include "darknet_ros/image_interface.hpp"
 }
 
 //extern "C" void ipl_into_image(IplImage* src, image im);
@@ -247,6 +246,8 @@ class YoloObjectDetector {
 
   void setupNetwork(char* cfgfile, char* weightfile, char* datafile, float thresh, char** names, int classes, int delay, char* prefix,
                     int avg_frames, float hier, int w, int h, int frames, int fullscreen);
+
+  image** load_alphabet_with_file(char* datafile);
 
   void yolo();
 

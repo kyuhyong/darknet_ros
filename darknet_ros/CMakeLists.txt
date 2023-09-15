@@ -3,10 +3,10 @@ project(darknet_ros)
 
 # Set c++11 cmake flags
 set(CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
-#set(CMAKE_CXX_STANDARD 17)
-#set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_C_FLAGS "-Wall -Wno-unused-result -Wno-unknown-pragmas -Wno-unused-variable -Wfatal-errors -fPIC ${CMAKE_C_FLAGS}")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(gtk+ REQUIRED gtk+-3.0)
 
 # Define path of darknet folder here.
 find_path(DARKNET_PATH
